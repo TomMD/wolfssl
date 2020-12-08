@@ -2984,6 +2984,7 @@ static int TLSX_CSR_Parse(WOLFSSL* ssl, byte* input, word16 length,
                                                                  byte isRequest)
 {
     int ret;
+    DecodedCert* cert;
 
     /* shut up compiler warnings */
     (void) ssl; (void) input;
@@ -3123,6 +3124,23 @@ static int TLSX_CSR_Parse(WOLFSSL* ssl, byte* input, word16 length,
 
     #if defined(WOLFSSL_TLS13) && !defined(NO_WOLFSSL_SERVER)
         if (ssl->options.tls1_3) {
+            cert = (DecodedCert*)XMALLOC(sizeof(DecodedCert), ssl->heap, DYNAMIC_TYPE_DCERT);
+            if (cert == NULL) {
+                return MEMORY_E;
+            }
+            InitDecodedCert(cert, ssl->buffers.certificate->buffer, ssl->buffers.certificate->length, ssl->heap);
+            ret = ParseCert(cert, CERT_TYPE, 1, ssl->ctx->cm);
+            if (ret != 0 ) {
+                XFREE(cert, heap, DYNAMIC_TYPE_DCERT);
+                return ret;
+            }
+            ret = TLSX_CSR_InitRequest(ssl->extensions, cert, ssl->heap);
+            if (ret != 0 ) {
+                XFREE(cert, heap, DYNAMIC_TYPE_DCERT);
+                return ret;
+            }
+            XFREE(cert, heap, DYNAMIC_TYPE_DCERT);
+
             OcspRequest* request;
             TLSX* extension = TLSX_Find(ssl->extensions, TLSX_STATUS_REQUEST);
             CertificateStatusRequest* csr = extension ?
